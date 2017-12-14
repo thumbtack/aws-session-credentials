@@ -68,6 +68,7 @@ import botocore
 
 CACHE_FILENAME = os.path.expanduser('~/.aws_session_credentials')
 CONFIG_SECTION = 'aws_session_credentials'
+PROFILE_BKP = 'AWS_PROFILE_ASC'
 EXPIRATION_BUFFER = 60 * 60 * 12  # seconds
 SESSION_DURATION = 60 * 60 * 36  # seconds
 TIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
@@ -107,7 +108,7 @@ def dump_credentials_to_file(credentials, credentials_file):
         config.write(handle)
 
 
-def dump_credentials(credentials, credentials_file):
+def dump_credentials(credentials, credentials_file, aws_profile):
     '''Save session credentials locally'''
     # save the session credentials locally
     credentials = credentials.copy()
@@ -126,6 +127,10 @@ def dump_credentials(credentials, credentials_file):
         print('export AWS_ACCESS_KEY_ID={}'.format(credentials['AccessKeyId']))
         print('export AWS_SECRET_ACCESS_KEY={}'.format(credentials['SecretAccessKey']))
         print('export AWS_SESSION_TOKEN={}'.format(credentials['SessionToken']))
+    # save a backup of the credentials profile
+    print('unset {};'.format(PROFILE_BKP))
+    if aws_profile:
+        print('export {}={};'.format(PROFILE_BKP, aws_profile))
 
 
 def load_credentials():
@@ -144,10 +149,12 @@ def load_credentials():
     return credentials
 
 
-def load_permanent_credentials():
+def load_permanent_credentials(aws_profile):
     '''Load permanent user credentials if they can be found'''
     resolver = botocore.credentials.create_credential_resolver(
-        botocore.session.Session()
+        botocore.session.Session(
+            profile=(aws_profile or None)
+        )
     )
     # find the first provider that doesn't provide session credentials
     for provider in resolver.providers:
@@ -160,7 +167,7 @@ def load_permanent_credentials():
     raise MainException('Could not find permanent credentials', True)
 
 
-def fetch_credentials(account, user):
+def fetch_credentials(account, user, aws_profile):
     '''Get a set of AWS session credentials'''
     # read the MFA token from the user
     sys.stderr.write('Enter AWS MFA device token [6-digit number]: ')
@@ -172,7 +179,7 @@ def fetch_credentials(account, user):
     # this should occur after user input to prevent a gap
     # between calculating the correct credentials and using them
     # in case they change in the meantime
-    permanent_credentials = load_permanent_credentials()
+    permanent_credentials = load_permanent_credentials(aws_profile)
     client = boto3.client(
         'sts',
         aws_access_key_id=permanent_credentials[0],
@@ -212,20 +219,24 @@ def parse_args():
 
 def run(account, user, interactive, credentials_file):
     '''Run the program'''
+    # get the non-session aws credentials profile if one exists
+    aws_profile = os.getenv('AWS_PROFILE')
+    if aws_profile == CONFIG_SECTION:
+        aws_profile = os.getenv(PROFILE_BKP)
     # load the cached credentials
     credentials = load_credentials()
     exist = credentials is not None
     expired = exist and is_expired(credentials['Expiration'])
     # handle the current state of the credentials
     if interactive and (not exist or expired):
-        credentials = fetch_credentials(account, user)
+        credentials = fetch_credentials(account, user, aws_profile)
     elif not exist:
         raise MainException('AWS credentials are missing', False)
     elif expired:
         raise MainException('AWS credentials are expiring soon', False)
     # dump the credentials if they exist
     if credentials is not None:
-        dump_credentials(credentials, credentials_file)
+        dump_credentials(credentials, credentials_file, aws_profile)
 
 
 def main():
