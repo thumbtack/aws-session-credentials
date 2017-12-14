@@ -4,7 +4,7 @@ import setuptools
 
 setuptools.setup(
     name='aws-session-credentials',
-    version='0.1.0',
+    version='0.1.1',
     description='Manage AWS session credentials',
     url='https://github.com/thumbtack/aws-session-credentials',
     author='Thumbtack SRE',
