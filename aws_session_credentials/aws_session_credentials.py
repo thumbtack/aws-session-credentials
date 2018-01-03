@@ -41,6 +41,9 @@ This script supports a non-interactive mode with the -n flag. This mode will
 not ask for a device token, and thus will not update session credentials, even
 if session credentials are missing or expired.
 
+Hardware MFA devices are supported through the -s flag. Failing to provide the
+-s flag while attempting to use a hardware MFA device will result in errors.
+
 Running the script non-interactively with expiring credentials looks like this:
 
     $ eval $(aws-session-credentials -n 654321123456 myusername)
@@ -167,7 +170,7 @@ def load_permanent_credentials(aws_profile):
     raise MainException('Could not find permanent credentials', True)
 
 
-def fetch_credentials(account, user, aws_profile):
+def fetch_credentials(account, user, serial, aws_profile):
     '''Get a set of AWS session credentials'''
     # read the MFA token from the user
     sys.stderr.write('Enter AWS MFA device token [6-digit number]: ')
@@ -186,10 +189,12 @@ def fetch_credentials(account, user, aws_profile):
         aws_secret_access_key=permanent_credentials[1],
     )
     # request session credentials from aws
+    if not serial:
+        serial = 'arn:aws:iam::{}:mfa/{}'.format(account, user)
     try:
         credentials = client.get_session_token(
             DurationSeconds=SESSION_DURATION,
-            SerialNumber='arn:aws:iam::{}:mfa/{}'.format(account, user),
+            SerialNumber=serial,
             TokenCode=token,
         )['Credentials']
     except Exception as err:
@@ -212,12 +217,16 @@ def parse_args():
         '--credentials-file', '-c',
         help='persist credentials in the given credentials file',
     )
+    parser.add_argument(
+        '--serial', '-s', default=None,
+        help='use the given hardware device to authenticate',
+    )
     parser.add_argument('ACCOUNT', help='AWS account id')
     parser.add_argument('USER', help='AWS IAM user name')
     return parser.parse_args()
 
 
-def run(account, user, interactive, credentials_file):
+def run(account, user, interactive, credentials_file, serial):
     '''Run the program'''
     # get the non-session aws credentials profile if one exists
     aws_profile = os.getenv('AWS_PROFILE')
@@ -229,7 +238,7 @@ def run(account, user, interactive, credentials_file):
     expired = exist and is_expired(credentials['Expiration'])
     # handle the current state of the credentials
     if interactive and (not exist or expired):
-        credentials = fetch_credentials(account, user, aws_profile)
+        credentials = fetch_credentials(account, user, serial, aws_profile)
     elif not exist:
         raise MainException('AWS credentials are missing', False)
     elif expired:
@@ -247,7 +256,8 @@ def main():
             args.ACCOUNT,
             args.USER,
             not args.non_interactive,
-            args.credentials_file
+            args.credentials_file,
+            args.serial,
         )
     except MainException as err:
         sys.stderr.write('{}\n'.format(err.message))
