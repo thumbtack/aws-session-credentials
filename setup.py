@@ -1,11 +1,19 @@
 #!/usr/bin/env python
 
+import os
+
 import setuptools
+
+HERE = os.path.abspath(os.path.dirname(__file__))
+README = os.path.join(HERE, 'README.rst')
+with open(README, 'r') as handle:
+    LONG_DESCRIPTION = handle.read()
 
 setuptools.setup(
     name='aws-session-credentials',
-    version='0.1.1',
+    version='0.1.2',
     description='Manage AWS session credentials',
+    long_description=LONG_DESCRIPTION,
     url='https://github.com/thumbtack/aws-session-credentials',
     author='Thumbtack SRE',
     license='Apache License 2.0',
