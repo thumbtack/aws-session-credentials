@@ -156,7 +156,7 @@ def load_permanent_credentials(aws_profile):
     '''Load permanent user credentials if they can be found'''
     resolver = botocore.credentials.create_credential_resolver(
         botocore.session.Session(
-            profile=(aws_profile or None)
+            profile=(aws_profile or 'default')
         )
     )
     # find the first provider that doesn't provide session credentials
