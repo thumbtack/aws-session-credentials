@@ -232,7 +232,8 @@ def run(account, user, interactive, credentials_file, serial):
     aws_profile = os.getenv('AWS_PROFILE')
     if aws_profile == CONFIG_SECTION:
         aws_profile = os.getenv(PROFILE_BKP)
-    del os.environ['AWS_PROFILE']
+        # it's impossible to use the temporary session to get a new session
+        del os.environ['AWS_PROFILE']
     # load the cached credentials
     credentials = load_credentials()
     exist = credentials is not None
