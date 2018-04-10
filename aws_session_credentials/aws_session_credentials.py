@@ -35,7 +35,9 @@ like this:
 
 Running the script in either mode with non-expired session credentials already
 cached will skip the device token prompt and output the correct shell commands
-without waiting on user input.
+without waiting on user input, unless the -f flag is specified, in which case
+the script will forcibly get a new set of session credentials no matter the
+current state of the system.
 
 This script supports a non-interactive mode with the -n flag. This mode will
 not ask for a device token, and thus will not update session credentials, even
@@ -221,12 +223,17 @@ def parse_args():
         '--serial', '-s', default=None,
         help='use the given hardware device to authenticate',
     )
+    parser.add_argument(
+        '--force', '-f',
+        action='store_true',
+        help='get a new set of credentials no matter what'
+    )
     parser.add_argument('ACCOUNT', help='AWS account id')
     parser.add_argument('USER', help='AWS IAM user name')
     return parser.parse_args()
 
 
-def run(account, user, interactive, credentials_file, serial):
+def run(account, user, interactive, credentials_file, serial, force):
     '''Run the program'''
     # get the non-session aws credentials profile if one exists
     aws_profile = os.getenv('AWS_PROFILE')
@@ -239,12 +246,14 @@ def run(account, user, interactive, credentials_file, serial):
     exist = credentials is not None
     expired = exist and is_expired(credentials['Expiration'])
     # handle the current state of the credentials
-    if interactive and (not exist or expired):
+    if interactive and (not exist or expired or force):
         credentials = fetch_credentials(account, user, serial, aws_profile)
     elif not exist:
         raise MainException('AWS credentials are missing', False)
     elif expired:
         raise MainException('AWS credentials are expiring soon', False)
+    elif force:
+        raise MainException('Force-update requested', False)
     # dump the credentials if they exist
     if credentials is not None:
         dump_credentials(credentials, credentials_file, aws_profile)
@@ -260,6 +269,7 @@ def main():
             not args.non_interactive,
             args.credentials_file,
             args.serial,
+            args.force,
         )
     except MainException as err:
         sys.stderr.write('{}\n'.format(err.message))

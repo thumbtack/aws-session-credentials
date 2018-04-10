@@ -11,7 +11,7 @@ with open(README, 'r') as handle:
 
 setuptools.setup(
     name='aws-session-credentials',
-    version='0.1.4',
+    version='0.1.5',
     description='Manage AWS session credentials',
     long_description=LONG_DESCRIPTION,
     url='https://github.com/thumbtack/aws-session-credentials',
